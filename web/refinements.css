@@ -1,0 +1,30 @@
+/* Legible detail text and compact layouts, retaining the quiet palette. */
+:root{--muted:#65735f}
+.field label,.field-label{font-size:11px;color:#5f7156}
+.field input:not([type=range]),.field select{font-size:12px}
+.card-head p,.card-subtitle,.stat-foot,.timeline-description,.field-hint{color:#6a7c60}
+.stat-top,.tiny-eyebrow,.eyebrow{color:#68795f}
+.thought-note{font-size:11px;color:#526d43}
+.inspector-meta{color:#697e5e;font-size:11px}
+.inspector-meta strong,.inspector-bottom,.observation-chip{color:#5d774f}
+.control-status,.control-speed,.deck-legend,.timeline-key,.timeline-axis,.replay-row{color:#6c805f}
+.summary-line,.small-card p,.model-details,.model-card p,.run-date,.event-strip{color:#6c805f}
+.prisoner-label{color:#5c754f}.deck-center p{color:#6d825e}
+.guide-card p,.guide-card ol{color:#607851}
+.nav-item{color:#65775e}.lab-note .tiny-eyebrow{color:#708264}
+.comparison-table th:nth-child(3),.comparison-table td:nth-child(3){display:table-cell}
+@media(max-width:400px){.control-actions{flex-wrap:wrap}.control-bar{align-items:flex-start}.card-head{flex-wrap:wrap}.segmented{margin-left:auto}.archive-toolbar{flex-wrap:wrap}.field-row{gap:10px}}
+@media(min-width:681px){.topbar{display:none}}
+.page-heading .eyebrow:empty,.page-heading p:empty,.card-head p:empty,.thought-note:empty{display:none}
+.page-heading h1{letter-spacing:-1.1px}
+.stat{padding-bottom:18px}
+.sidebar nav{margin-top:42px}
+@media(max-width:680px){.sidebar nav{margin-top:0}.page-heading{margin-bottom:20px}}
+.inspector-actions{justify-content:flex-end}
+.config-card .button-config-form{display:flex;flex-direction:column}
+.ballot-more{text-align:center;padding:0 20px 22px}
+.ballot-more .btn{min-width:112px}
+.vote-outcome[hidden]{display:none}
+.notice{background:transparent;border:0;padding:0;margin-bottom:17px;color:#5f7156}
+.notice svg{color:#728969}
+.models-grid{align-items:start}

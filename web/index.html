@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f7f3">
+  <meta name="description" content="A local laboratory for the green-eyed island and the two-button dilemma. Explore private choices, shared knowledge, and collective outcomes.">
+  <title>Common Ground — Reasoning lab</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/refinements.css">
+  <link rel="stylesheet" href="/buttons.css">
+  <script src="/buttons.js" defer></script>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to workspace</a>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#experiment" aria-label="Common Ground home">
+        <span class="brand-mark"><i></i><i></i><i></i><i></i></span>
+        <span>common<br><strong>ground.</strong></span>
+      </a>
+      <nav aria-label="Main navigation">
+        <button class="nav-item active" data-page="experiment"><span data-icon="flask"></span>Experiment<span class="nav-arrow">↗</span></button>
+        <button class="nav-item" data-page="archive"><span data-icon="archive"></span>Run archive<span class="nav-count" id="archive-count">0</span></button>
+        <button class="nav-item" data-page="models"><span data-icon="layers"></span>Models<span class="nav-dot" id="model-dot"></span></button>
+        <button class="nav-item" data-page="guide"><span data-icon="book"></span>Game rules</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="local-status"><span class="status-dot"></span><div><strong>Local workspace</strong><small>Runs saved here</small></div></div>
+      </div>
+    </aside>
+    <main id="main" tabindex="-1">
+      <header class="topbar"><div class="breadcrumb"><strong id="page-breadcrumb">Experiment</strong></div><button class="icon-button" data-page="guide" aria-label="Game rules"><span data-icon="help"></span></button></header>
+      <div class="workspace" id="workspace"></div>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="experiment-dialog" class="modal"></dialog>
+  <dialog id="provider-dialog" class="modal"></dialog>
+</body>
+</html>
