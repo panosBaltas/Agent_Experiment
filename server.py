@@ -14,6 +14,7 @@ from pathlib import Path
 from engine import ValidationError, advance, create_run, summary
 from providers import ModelAdapter, SYSTEM_PROMPT, DECISION_SCHEMA, validate_provider
 from button_game import SYSTEM_PROMPT as BUTTON_PROMPT, DECISION_SCHEMA as BUTTON_SCHEMA
+from guessing_game import SYSTEM_PROMPT as GUESSING_PROMPT, DECISION_SCHEMA as GUESSING_SCHEMA
 from storage import Store
 
 ROOT = Path(__file__).resolve().parent
@@ -93,7 +94,7 @@ def make_handler(app):
             path = urllib.parse.urlparse(self.path).path
             try:
                 if path == "/api/health":
-                    self.send_json({"ok": True, "name": "Common Ground", "version": "1.1.0"})
+                    self.send_json({"ok": True, "name": "Common Ground", "version": "1.2.0"})
                 elif path == "/api/runs":
                     self.send_json({"runs": [summary(r) for r in app.store.runs()]})
                 elif path == "/api/providers":
@@ -146,11 +147,11 @@ def make_handler(app):
                 if path == "/api/runs":
                     provider = app.store.get_provider(data.get("provider_id")) if data.get("mode") == "model" else None
                     run = create_run(data, provider)
-                    run["engine_version"] = "1.1.0"
+                    run["engine_version"] = "1.2.0"
                     if run["config"]["mode"] == "model":
-                        is_buttons = run["config"].get("game") == "buttons"
-                        run["system_prompt"] = BUTTON_PROMPT if is_buttons else SYSTEM_PROMPT
-                        run["prompt_version"] = "buttons-v1" if is_buttons else "island-v1"
+                        game = run["config"].get("game", "island")
+                        run["system_prompt"] = {"buttons": BUTTON_PROMPT, "guessing": GUESSING_PROMPT}.get(game, SYSTEM_PROMPT)
+                        run["prompt_version"] = {"buttons": "buttons-v1", "guessing": "guessing-v1"}.get(game, "island-v1")
                     app.store.save_run(run)
                     self.send_json(run, 201)
                 elif path == "/api/providers":
@@ -182,13 +183,13 @@ def make_handler(app):
                         if not run:
                             self.send_json({"error": "Experiment not found."}, 404)
                             return
-                        is_buttons = run["config"].get("game") == "buttons"
-                        prompt = BUTTON_PROMPT if is_buttons else SYSTEM_PROMPT
-                        schema = BUTTON_SCHEMA if is_buttons else DECISION_SCHEMA
+                        game = run["config"].get("game", "island")
+                        prompt = {"buttons": BUTTON_PROMPT, "guessing": GUESSING_PROMPT}.get(game, SYSTEM_PROMPT)
+                        schema = {"buttons": BUTTON_SCHEMA, "guessing": GUESSING_SCHEMA}.get(game, DECISION_SCHEMA)
                         adapter = ModelAdapter(run["provider"], app.secrets.get(run["provider"]["id"], ""), run.get("system_prompt", prompt), schema) if run["provider"] else None
                         if adapter:
                             model_adapter = adapter
-                            total = len(run["players"]) if is_buttons else sum(p["status"] == "imprisoned" for p in run["prisoners"])
+                            total = len(run["players"]) if game in ("buttons", "guessing") else sum(p["status"] == "imprisoned" for p in run["prisoners"])
                             with app.lock:
                                 app.progress[run_id] = {"completed": 0, "total": total,
                                                         "current_agent": None, "started": time.monotonic()}

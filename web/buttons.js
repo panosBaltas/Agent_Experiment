@@ -5,15 +5,15 @@ function buttonDefaults() { return {game:'buttons',name:'Button dilemma',populat
 function buttonConfigName(config) { return `${config.population} participants · ${config.mode==='placeholder'?`${config.button_2_count} choose Button 2`:'button dilemma'}`; }
 function gamePicker(game='island',guide=false) {
   const action=guide?'guide-game':'switch-game';
-  return `<div class="game-picker"><div class="game-tabs" role="group" aria-label="Choose experiment"><button type="button" class="game-tab ${game==='island'?'active':''}" data-action="${action}" data-game="island" aria-pressed="${game==='island'}" ${!guide&&(state.busy||state.autoplay)?'disabled':''}>${icon('eye')}Green-eyed island</button><button type="button" class="game-tab ${game==='buttons'?'active':''}" data-action="${action}" data-game="buttons" aria-pressed="${game==='buttons'}" ${!guide&&(state.busy||state.autoplay)?'disabled':''}>${icon('buttons')}Button dilemma</button></div></div>`;
+  return `<div class="game-picker"><div class="game-tabs" role="group" aria-label="Choose experiment"><button type="button" class="game-tab ${game==='island'?'active':''}" data-action="${action}" data-game="island" aria-pressed="${game==='island'}" ${!guide&&(state.busy||state.autoplay)?'disabled':''}>${icon('eye')}Green-eyed island</button><button type="button" class="game-tab ${game==='buttons'?'active':''}" data-action="${action}" data-game="buttons" aria-pressed="${game==='buttons'}" ${!guide&&(state.busy||state.autoplay)?'disabled':''}>${icon('buttons')}Button dilemma</button><button type="button" class="game-tab ${game==='guessing'?'active':''}" data-action="${action}" data-game="guessing" aria-pressed="${game==='guessing'}" ${!guide&&(state.busy||state.autoplay)?'disabled':''}>${icon('chart')}Two-thirds game</button></div></div>`;
 }
 function switchGame(game) {
-  if(state.busy||state.autoplay||!['island','buttons'].includes(game)) return;
+  if(state.busy||state.autoplay||!['island','buttons','guessing'].includes(game)) return;
   if((currentConfig().game||'island')===game&&state.page==='experiment') return;
   state.gameDrafts=state.gameDrafts||{};
   state.gameDrafts[currentConfig().game||'island']={...currentConfig()};
-  state.run=null;state.draft={...(state.gameDrafts[game]||(game==='buttons'?buttonDefaults():defaults()))};
-  state.cursor=0;state.showAllBallots=false;state.selected=game==='buttons'?'A01':'P01';state.view='observer';state.page='experiment';
+  state.run=null;state.draft={...(state.gameDrafts[game]||(game==='buttons'?buttonDefaults():game==='guessing'?guessingDefaults():defaults()))};
+  state.cursor=0;state.showAllBallots=false;state.selected=game==='island'?'P01':'A01';state.view='observer';state.page='experiment';
   location.hash='experiment';render();
 }
 function buttonPlayers() {

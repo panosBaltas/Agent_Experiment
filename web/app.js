@@ -67,6 +67,7 @@ function button(text, action, symbol='arrow', cls='', disabled=false, extra='') 
 function currentConfig() { return state.run?.config || state.draft; }
 function configName(config) {
   if(isButtonGame(config)) return buttonConfigName(config);
+  if(isGuessingGame(config)) return guessingConfigName(config);
   return `${config.population} prisoners · ${config.announcement === 'none' ? 'no announcement' : config.minimum_green > 1 ? 'stronger announcement' : config.green_count < config.population ? 'mixed eyes' : 'public announcement'}`;
 }
 function previewPrisoners() {
@@ -174,6 +175,7 @@ function eventText() {
 }
 function renderExperiment() {
   if(isButtonGame()) return renderButtonsExperiment();
+  if(isGuessingGame()) return renderGuessingExperiment();
   const cfg=currentConfig(), run=state.run;
   const alert=run?.error?`<div class="error-banner"><strong>${run.status==='failed'?'This night was not committed.':'Experiment limit reached.'}</strong> ${esc(run.error)}${run.failed_round?` The last completed night is ${run.night}; partial decisions are retained in the full export.`:''}</div>`:'';
   const modeText=cfg.mode==='reference'?'Logical reference · scripted, no AI calls':`AI agents · ${esc(run?.provider?.name||state.providers.find(p=>p.id===cfg.provider_id)?.name||'your model')}`;
@@ -182,6 +184,7 @@ function renderExperiment() {
 function refreshPreview(skipTimeline=false) {
   if (state.page!=='experiment') return;
   if(isButtonGame()){refreshButtonPreview(skipTimeline);return;}
+  if(isGuessingGame()){refreshGuessingPreview();return;}
   for (const [id,fn] of [['stat-container',renderStats],['deck-area',renderDeck],['inspector-card',renderInspector],['timeline-card',renderTimeline]]) {
     const el=document.getElementById(id); if(el&&!(skipTimeline&&id==='timeline-card')) el.innerHTML=fn();
   }
@@ -192,14 +195,15 @@ function refreshPreview(skipTimeline=false) {
 function renderArchive() {
   const filtered=state.runs.filter(r=>`${r.name} ${r.provider_name} ${r.game||'island'}`.toLowerCase().includes(state.search.toLowerCase()));
   const top=heading('','Run archive','',button('New experiment','new','plus','',state.busy));
-  if(!state.runs.length)return top+`<div class="empty-state"><div class="empty-icon">${icon('archive')}</div><h2>Your notebook starts here</h2><p>Run either experiment. Its settings, private observations, and decisions are saved automatically.</p>${button('Open the experiment','go-experiment','flask','btn-primary')}</div>`;
+  if(!state.runs.length)return top+`<div class="empty-state"><div class="empty-icon">${icon('archive')}</div><h2>Your notebook starts here</h2><p>Run an experiment. Its settings, private observations, and decisions are saved automatically.</p>${button('Open the experiment','go-experiment','flask','btn-primary')}</div>`;
   return top+`<div class="archive-toolbar"><input type="search" class="search-input" id="archive-search" placeholder="Search experiments or models" value="${esc(state.search)}" aria-label="Search saved experiments">${button(`Compare ${state.compare.length} runs`,'compare','layers','',state.compare.length!==2)}</div><div class="card table-scroll"><table class="archive-table"><thead><tr><th aria-label="Select for comparison"></th><th>EXPERIMENT</th><th>POLICY</th><th>STEP</th><th>OUTCOME</th><th>STATUS</th><th></th></tr></thead><tbody>${filtered.map(r=>{
-    const buttons=isButtonGame(r.config);
-    return `<tr><td><input type="checkbox" data-compare="${r.id}" aria-label="Compare ${esc(r.name)}" ${state.compare.includes(r.id)?'checked':''}></td><td><span class="run-name">${esc(r.name)}<span class="game-label ${buttons?'buttons':''}">${buttons?'Button dilemma':'Green-eyed island'}</span></span><span class="run-date">${new Date(r.created_at).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})} · ${r.config.population} ${buttons?'participants':'prisoners'}</span></td><td>${esc(r.provider_name)}<div class="run-date" style="margin-top:5px">${r.config.mode==='model'?'AI agents':buttons?'Scripted placeholders':'Scripted reference'}</div></td><td>${buttons?'Round':'Night'} ${r.night}</td><td>${buttons?(r.result?`${r.result.survivors} / ${r.config.population} survived`:'Vote pending'):`${r.released} / ${r.config.green_count} released`}${r.killed?`<div class="run-date" style="color:var(--red);margin-top:5px">${r.killed} died</div>`:''}</td><td>${badge(labels[r.status],r.status==='completed'?'green':r.status==='failed'?'red':'gray')}</td><td>${button('Open','open-run','arrow','btn-small',state.busy,`data-id="${r.id}"`)}</td></tr>`;
+    const buttons=isButtonGame(r.config),guessing=isGuessingGame(r.config);
+    const outcome=guessing?(r.result?`Target ${guessNumber(r.result.target)} · ${r.result.winner_ids.length} winner${r.result.winner_ids.length===1?'':'s'}`:'Round pending'):buttons?(r.result?`${r.result.survivors} / ${r.config.population} survived`:'Vote pending'):`${r.released} / ${r.config.green_count} released`;
+    return `<tr><td><input type="checkbox" data-compare="${r.id}" aria-label="Compare ${esc(r.name)}" ${state.compare.includes(r.id)?'checked':''}></td><td><span class="run-name">${esc(r.name)}<span class="game-label ${buttons?'buttons':guessing?'guessing':''}">${buttons?'Button dilemma':guessing?'Two-thirds game':'Green-eyed island'}</span></span><span class="run-date">${new Date(r.created_at).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})} · ${r.config.population} ${buttons||guessing?'participants':'prisoners'}</span></td><td>${esc(r.provider_name)}<div class="run-date" style="margin-top:5px">${r.config.mode==='model'?'AI agents':buttons?'Scripted placeholders':guessing?'Seeded random':'Scripted reference'}</div></td><td>${buttons||guessing?'Round':'Night'} ${r.night}</td><td>${outcome}${r.killed?`<div class="run-date" style="color:var(--red);margin-top:5px">${r.killed} died</div>`:''}</td><td>${badge(labels[r.status],r.status==='completed'?'green':r.status==='failed'?'red':'gray')}</td><td>${button('Open','open-run','arrow','btn-small',state.busy,`data-id="${r.id}"`)}</td></tr>`;
   }).join('')||'<tr><td colspan="7">No experiments match your search.</td></tr>'}</tbody></table></div><p class="field-hint" style="margin-top:16px">Compare two runs of the same game.</p>`;
 }
 function renderModels() {
-  const top=heading('','Model connections','Choose a model for either experiment.',button('Add model','add-provider','plus'));
+  const top=heading('','Model connections','Choose a model for any experiment.',button('Add model','add-provider','plus'));
   const reference=`<section class="card model-card"><div class="model-card-header"><span class="provider-icon">${icon('flask')}</span><div><h3>Island reference</h3><p>Scripted logic · no model calls</p></div>${badge('Built in','green')}</div><div class="model-card-actions">${button('Use reference','use-reference','arrow','btn-small')}</div></section>`;
   const cards=state.providers.map(p=>{
     const tested=state.connections[p.id];
@@ -209,10 +213,12 @@ function renderModels() {
 }
 function renderGuide() {
   if((state.guideGame||currentConfig().game)==='buttons') return renderButtonsGuide();
+  if((state.guideGame||currentConfig().game)==='guessing') return renderGuessingGuide();
   return gamePicker(state.guideGame||'island',true)+heading('','The green-eyed puzzle','')+`<div class="guide-grid"><section class="card guide-card"><h2>The rules of the island</h2><ol><li>Each prisoner sees everyone else's eye colour, but cannot see their own. There are no mirrors, reflections, or conversations.</li><li>Each night, every prisoner independently chooses whether to request release. Green eyes mean freedom; any other colour means death.</li><li>All prisoners are perfect logicians. Everyone knows that everyone will leave at the first opportunity justified with certainty.</li><li>Decisions happen together. Departures become visible at the next morning's head count.</li><li>A truthful visitor makes one announcement in front of everyone.</li></ol><div class="quote">“At least one of you<br>has green eyes.”</div><p>One green-eyed prisoner sees none and can leave on the first night. Two each wait for the other; when neither leaves on night one, both deduce their colour and leave on night two. The same argument continues.</p><p>The classic 100-prisoner group leaves together on night 100.</p><a href="https://www.ted.com/talks/alex_gendler_can_you_solve_the_famously_difficult_green_eyed_logic_puzzle" target="_blank" rel="noreferrer">Watch the original TED-Ed puzzle ↗</a></section><div class="right-stack"><section class="card guide-card"><h2>Common knowledge</h2><p>Seeing a fact is different from knowing what everyone else knows about it. A publicly witnessed announcement establishes a premise that everyone knows, everyone knows everyone knows, and so on.</p><p>In the ideal model, each silent night eliminates another hypothetical situation. This is why the morning head count matters.</p><div class="formula">Departure night = G − q + 1</div><p>Here G is the actual number of green-eyed prisoners and q is the public lower bound. Count from the first night after the announcement. A delayed announcement shifts the departure night by the delay.</p></section><section class="card guide-card"><h2>What this lab measures</h2><p>Reference agents follow the proven policy. AI agents receive only their private observations and history; their reasoning can succeed or fail.</p><p>Survival alone is not a successful deduction. A green-eyed agent that guesses early survives, but departs before the shared information justifies it.</p><p>Once a run diverges, the original ideal history no longer applies. The lab records that first divergence and preserves what happens afterward.</p><p>Try different populations, mixed colours, stronger announcements, and the no-announcement control. A familiar answer alone does not establish independent reasoning.</p><a href="https://xkcd.com/solution.html" target="_blank" rel="noreferrer">Read the induction argument ↗</a></section></div></div>`;
 }
 function openExperimentDialog(duplicate=false) {
   if(isButtonGame()){openButtonExperimentDialog(duplicate);return;}
+  if(isGuessingGame()){openGuessingExperimentDialog(duplicate);return;}
   if(state.busy) return;
   const cfg=duplicate?{...currentConfig()}:state.run?defaults():{...state.draft};
   const dialog=document.getElementById('experiment-dialog');
@@ -231,7 +237,7 @@ async function refreshData() {
 }
 async function ensureRun() {
   if(state.run) return;
-  const config={...state.draft,name:['Island experiment','Button dilemma'].includes(state.draft.name)?configName(state.draft):state.draft.name};
+  const config={...state.draft,name:['Island experiment','Button dilemma','Two-thirds game'].includes(state.draft.name)?configName(state.draft):state.draft.name};
   state.run=await api('/api/runs',config);
   state.cursor=0;
   await refreshData();
@@ -243,7 +249,7 @@ async function stepRun() {
   try {
     await ensureRun();
     if(state.run.config.mode==='model') {
-      state.progress={completed:0,total:isButtonGame()?state.run.players.length:state.run.prisoners.filter(p=>p.status==='imprisoned').length,elapsed_seconds:0};
+      state.progress={completed:0,total:isButtonGame()||isGuessingGame()?state.run.players.length:state.run.prisoners.filter(p=>p.status==='imprisoned').length,elapsed_seconds:0};
       progressTimer=setInterval(async()=>{
         try {
           const progress=await api(`/api/runs/${state.run.id}/progress`);
@@ -261,7 +267,7 @@ async function stepRun() {
     if(terminal(state.run)) state.autoplay=false;
     await refreshData();
     if(state.run.status==='failed') toast('The agent response interrupted this run. No partial decision round was committed.',true);
-    else if(state.run.status==='completed') toast(isButtonGame()?(state.run.config.mode==='placeholder'?'Scripted vote complete. All ballots and outcomes are saved.':'AI vote complete. All ballots and outcomes are saved.'):(state.run.config.mode==='reference'?'Reference run complete. Every decision has been saved.':'AI run complete. Open the archive to compare results.'));
+    else if(state.run.status==='completed') toast(isGuessingGame()?'Guessing round complete. Guesses and winners are saved.':isButtonGame()?(state.run.config.mode==='placeholder'?'Scripted vote complete. All ballots and outcomes are saved.':'AI vote complete. All ballots and outcomes are saved.'):(state.run.config.mode==='reference'?'Reference run complete. Every decision has been saved.':'AI run complete. Open the archive to compare results.'));
     else if(state.run.status==='limit_reached') toast('Run limit reached. Completed decisions are saved.');
   } catch(error) {state.autoplay=false;toast(error.message,true);}
   finally {clearInterval(progressTimer);state.progress=null;state.busy=false;render();}
@@ -287,6 +293,7 @@ async function navigate(page) {
 }
 async function inspectLog() {
   if(isButtonGame()){inspectButtonLog();return;}
+  if(isGuessingGame()){inspectGuessingLog();return;}
   const history=state.run?.histories[state.selected]||[];
   const dialog=document.getElementById('experiment-dialog');
   const current=history.filter(e=>e.observation.night<=state.cursor);
@@ -296,10 +303,12 @@ async function inspectLog() {
 function compareRuns() {
   const runs=state.compare.map(id=>state.runs.find(r=>r.id===id)).filter(Boolean);
   if(runs.length!==2)return;
-  if(isButtonGame(runs[0].config)!==isButtonGame(runs[1].config)){toast('Choose two runs of the same experiment to compare.');return;}
-  const buttons=isButtonGame(runs[0].config),dialog=document.getElementById('experiment-dialog');
-  const rows=buttons?[['Policy',r=>r.provider_name],['Participants',r=>r.config.population],['Button 1 votes',r=>r.result?.button_1_votes??'Pending'],['Button 2 votes',r=>r.result?.button_2_votes??'Pending'],['Survivors',r=>r.result?.survivors??'Pending'],['Deaths',r=>r.result?.deaths??'Pending'],['Tie rule',r=>r.config.tie_rule==='button_2_loses'?'Button 2 loses':'Everyone survives'],['Exact tie',r=>r.result?(r.result.tied?'Yes':'No'):'Pending'],['Model calls',r=>r.usage.model_calls],['Run status',r=>labels[r.status]]]:[['Policy',r=>r.provider_name],['Population',r=>r.config.population],['Green-eyed',r=>r.config.green_count],['Completed nights',r=>r.night],['Released',r=>r.released],['Killed',r=>r.killed],['Model calls',r=>r.usage.model_calls],['Reported input tokens',r=>r.usage.input_tokens],['Reported output tokens',r=>r.usage.output_tokens],['Ideal departure night',r=>r.benchmark.expected_night??'None'],['First divergence',r=>r.benchmark.first_divergence?`Night ${r.benchmark.first_divergence.night} · ${r.benchmark.first_divergence.category.replaceAll('_',' ')}`:'None observed'],['Run status',r=>labels[r.status]]];
-  dialog.innerHTML=`<div class="modal-head"><div><h2>Compare experiments</h2><p>${buttons?'Button dilemma · recorded votes and survival outcomes.':'Green-eyed island · recorded decisions and reference outcomes.'}</p></div><button type="button" class="icon-button" data-action="close-dialog" aria-label="Close comparison">${icon('close')}</button></div><div class="table-scroll"><table class="archive-table comparison-table"><thead><tr><th>MEASURE</th>${runs.map(r=>`<th>${esc(r.name)}</th>`).join('')}</tr></thead><tbody>${rows.map(([name,fn])=>`<tr><td>${name}</td>${runs.map(r=>`<td>${esc(fn(r))}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="modal-footer">${button('Close','close-dialog','check')}</div>`;
+  const game=runs[0].config.game||'island';
+  if(game!==(runs[1].config.game||'island')){toast('Choose two runs of the same experiment to compare.');return;}
+  const dialog=document.getElementById('experiment-dialog');
+  const rows=game==='buttons'?[['Policy',r=>r.provider_name],['Participants',r=>r.config.population],['Button 1 votes',r=>r.result?.button_1_votes??'Pending'],['Button 2 votes',r=>r.result?.button_2_votes??'Pending'],['Survivors',r=>r.result?.survivors??'Pending'],['Deaths',r=>r.result?.deaths??'Pending'],['Tie rule',r=>r.config.tie_rule==='button_2_loses'?'Button 2 loses':'Everyone survives'],['Exact tie',r=>r.result?(r.result.tied?'Yes':'No'):'Pending'],['Model calls',r=>r.usage.model_calls],['Run status',r=>labels[r.status]]]:game==='guessing'?[['Policy',r=>r.provider_name],['Participants',r=>r.config.population],['Average',r=>r.result?guessNumber(r.result.average):'Pending'],['Two-thirds target',r=>r.result?guessNumber(r.result.target):'Pending'],['Winner IDs',r=>r.result?r.result.winner_ids.join(', '):'Pending'],['Winning guesses',r=>r.result?Object.values(r.result.winning_guesses).join(', '):'Pending'],['Model calls',r=>r.usage.model_calls],['Run status',r=>labels[r.status]]]:[['Policy',r=>r.provider_name],['Population',r=>r.config.population],['Green-eyed',r=>r.config.green_count],['Completed nights',r=>r.night],['Released',r=>r.released],['Killed',r=>r.killed],['Model calls',r=>r.usage.model_calls],['Reported input tokens',r=>r.usage.input_tokens],['Reported output tokens',r=>r.usage.output_tokens],['Ideal departure night',r=>r.benchmark.expected_night??'None'],['First divergence',r=>r.benchmark.first_divergence?`Night ${r.benchmark.first_divergence.night} · ${r.benchmark.first_divergence.category.replaceAll('_',' ')}`:'None observed'],['Run status',r=>labels[r.status]]];
+  const description=game==='buttons'?'Button dilemma · recorded votes and survival outcomes.':game==='guessing'?'Two-thirds game · guesses and winning target.':'Green-eyed island · recorded decisions and reference outcomes.';
+  dialog.innerHTML=`<div class="modal-head"><div><h2>Compare experiments</h2><p>${description}</p></div><button type="button" class="icon-button" data-action="close-dialog" aria-label="Close comparison">${icon('close')}</button></div><div class="table-scroll"><table class="archive-table comparison-table"><thead><tr><th>MEASURE</th>${runs.map(r=>`<th>${esc(r.name)}</th>`).join('')}</tr></thead><tbody>${rows.map(([name,fn])=>`<tr><td>${name}</td>${runs.map(r=>`<td>${esc(fn(r))}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="modal-footer">${button('Close','close-dialog','check')}</div>`;
   dialog.showModal();
 }
 
@@ -313,22 +322,23 @@ document.addEventListener('click',async event=>{
   try {
     if(action==='switch-game') switchGame(target.dataset.game);
     else if(action==='guide-game'){state.guideGame=target.dataset.game;render();}
-    else if(action==='vote') await stepRun();
+    else if(action==='vote'||action==='guess-round') await stepRun();
     else if(action==='play') await play();
     else if(action==='step') await stepRun();
     else if(action==='new'||action==='duplicate') openExperimentDialog(action==='duplicate');
     else if(action==='close-dialog') target.closest('dialog').close();
     else if(action==='select-prisoner'){state.selected=target.dataset.id;refreshPreview();}
     else if(action==='toggle-ballots'&&isButtonGame()){state.showAllBallots=!state.showAllBallots;document.getElementById('voting-room').innerHTML=renderVotingRoom();}
+    else if(action==='toggle-guesses'&&isGuessingGame()){state.showAllBallots=!state.showAllBallots;document.getElementById('guessing-room').innerHTML=renderGuessingRoom();}
     else if(action==='view-observer'||action==='view-prisoner'){state.view=action==='view-observer'?'observer':'prisoner';render();}
     else if(action==='seek'&&!state.busy&&!state.autoplay){state.cursor=Number(target.dataset.night);render();}
     else if(action==='export'&&state.run){location.href=`/api/runs/${state.run.id}/export`;}
     else if(action==='go-experiment') await navigate('experiment');
-    else if(action==='open-run'&&!state.busy){state.autoplay=false;state.run=await api(`/api/runs/${target.dataset.id}`);state.cursor=state.run.night;state.showAllBallots=false;state.selected=isButtonGame()?'A01':'P01';await navigate('experiment');}
+    else if(action==='open-run'&&!state.busy){state.autoplay=false;state.run=await api(`/api/runs/${target.dataset.id}`);state.cursor=state.run.night;state.showAllBallots=false;state.selected=isButtonGame()||isGuessingGame()?'A01':'P01';await navigate('experiment');}
     else if(action==='inspect-log') await inspectLog();
     else if(action==='add-provider') openProviderDialog();
     else if(action==='edit-provider') openProviderDialog(target.dataset.id);
-    else if(action==='use-model'&&!state.busy){state.autoplay=false;state.draft={...currentConfig(),mode:'model',provider_id:target.dataset.id};state.run=null;state.cursor=0;state.selected=isButtonGame()?'A01':'P01';await navigate('experiment');}
+    else if(action==='use-model'&&!state.busy){state.autoplay=false;state.draft={...currentConfig(),mode:'model',provider_id:target.dataset.id};state.run=null;state.cursor=0;state.selected=isButtonGame()||isGuessingGame()?'A01':'P01';await navigate('experiment');}
     else if(action==='test-provider') {
       target.disabled=true;target.textContent='Connecting…';
       try {const result=await api(`/api/providers/${target.dataset.id}/test`,{});state.connections[target.dataset.id]=result;toast(result.message);}
@@ -352,8 +362,8 @@ document.addEventListener('submit',async event=>{
       if(state.busy) throw new Error('Wait for the current decision round to finish first.');
       state.autoplay=false;
       const run=await api('/api/runs',values);
-      state.run=run;state.draft={...run.config};state.cursor=0;state.showAllBallots=false;state.selected=isButtonGame()?'A01':'P01';
-      form.closest('dialog').close();await refreshData();await navigate('experiment');toast(isButtonGame()?'Experiment created. Press Run the vote to resolve all choices together.':'Experiment created. Step a night or press Run experiment.');
+      state.run=run;state.draft={...run.config};state.cursor=0;state.showAllBallots=false;state.selected=isButtonGame()||isGuessingGame()?'A01':'P01';
+      form.closest('dialog').close();await refreshData();await navigate('experiment');toast(isGuessingGame()?'Experiment created. Press Run the round to reveal the result.':isButtonGame()?'Experiment created. Press Run the vote to resolve all choices together.':'Experiment created. Step a night or press Run experiment.');
     }else{
       if(form.dataset.id) values.id=form.dataset.id;
       values.clear_api_key=values.clear_api_key==='on';
@@ -364,6 +374,7 @@ document.addEventListener('submit',async event=>{
 });
 document.addEventListener('input',event=>{
   const el=event.target;
+  if(handleGuessingInput(el))return;
   if(handleButtonInput(el))return;
   if(el.id==='archive-search'){
     state.search=el.value;
@@ -396,6 +407,7 @@ document.addEventListener('input',event=>{
 });
 document.addEventListener('change',event=>{
   const el=event.target;
+  if(handleGuessingChange(el))return;
   if(handleButtonChange(el))return;
   if(el.id==='speed-select'){state.speed=Number(el.value);return;}
   if(el.dataset.compare){

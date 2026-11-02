@@ -33,8 +33,11 @@ def validate_config(data):
     if game == "buttons":
         from button_game import validate_config as validate_buttons
         return validate_buttons(data)
+    if game == "guessing":
+        from guessing_game import validate_config as validate_guessing
+        return validate_guessing(data)
     if game != "island":
-        raise ValidationError("Choose the green-eyed island or the button dilemma.")
+        raise ValidationError("Choose the green-eyed island, button dilemma, or two-thirds game.")
     population = integer(data.get("population", 5), "Population", 1, 100)
     green = integer(data.get("green_count", population), "Green-eyed prisoners", 0, population)
     announcement = data.get("announcement", "public")
@@ -65,6 +68,9 @@ def create_run(data, provider=None):
     if config["game"] == "buttons":
         from button_game import create_run as create_buttons
         return create_buttons(config, provider)
+    if config["game"] == "guessing":
+        from guessing_game import create_run as create_guessing
+        return create_guessing(config, provider)
     if config["mode"] == "model" and provider is None:
         raise ValidationError("Add and select a model connection first.")
     colours = ["green"] * config["green_count"] + ["not_green"] * (config["population"] - config["green_count"])
@@ -153,6 +159,9 @@ def advance(run, adapter=None):
     if run["config"].get("game", "island") == "buttons":
         from button_game import advance as advance_buttons
         return advance_buttons(run, adapter)
+    if run["config"].get("game") == "guessing":
+        from guessing_game import advance as advance_guessing
+        return advance_guessing(run, adapter)
     # Completed records are immutable. Copy the mutable containers, not every
     # historical observation on each night (important for 100-prisoner runs).
     next_run = {**run, "prisoners": [dict(p) for p in run["prisoners"]],
@@ -247,6 +256,9 @@ def summary(run):
     if run["config"].get("game", "island") == "buttons":
         from button_game import summary as summarize_buttons
         return summarize_buttons(run)
+    if run["config"].get("game") == "guessing":
+        from guessing_game import summary as summarize_guessing
+        return summarize_guessing(run)
     statuses = {s: sum(p["status"] == s for p in run["prisoners"])
                 for s in ("imprisoned", "released", "killed")}
     return {"id": run["id"], "game": "island", "created_at": run["created_at"], "updated_at": run["updated_at"],

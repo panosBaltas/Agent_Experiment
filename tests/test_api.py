@@ -10,6 +10,7 @@ from pathlib import Path
 
 from engine import ValidationError, observation, create_run, reference_decision
 from button_game import DECISION_SCHEMA as BUTTON_SCHEMA
+from guessing_game import DECISION_SCHEMA as GUESSING_SCHEMA
 from providers import ModelAdapter, validate_provider
 from server import Application, make_handler
 
@@ -43,7 +44,9 @@ class MockModelHandler(BaseHTTPRequestHandler):
             time.sleep(self.delay)
         obs = json.loads(value["messages"][-1]["content"])
         content = json.dumps({"action": "button_2", "justification": "Mock button choice"}
-                             if obs.get("experiment") == "buttons" else reference_decision(obs))
+                             if obs.get("experiment") == "buttons" else
+                             {"guess": 20, "justification": "Mock guessing choice"}
+                             if obs.get("experiment") == "guessing" else reference_decision(obs))
         if self.path == "/api/chat":
             self.reply({"message": {"content": content}, "done": True,
                         "done_reason": "length" if self.truncated else "stop",
@@ -227,6 +230,46 @@ class HTTPTests(unittest.TestCase):
                     self.assertEqual(schema, BUTTON_SCHEMA)
                     self.assertEqual(len(request["messages"]), 2)
                     self.assertNotIn("button_2_count", json.loads(request["messages"][-1]["content"]))
+            self.assertEqual(len(MockModelHandler.calls), 6)
+        finally:
+            mock.shutdown()
+            mock.server_close()
+            thread.join()
+
+    def test_guessing_round_persists_and_uses_game_specific_model_contract(self):
+        scripted = self.request("/api/runs", {"game": "guessing", "population": 4, "seed": 7})
+        completed = self.request("/api/runs/%s/step" % scripted["id"], {})
+        self.assertEqual(completed["status"], "completed")
+        self.assertEqual(len(completed["players"]), 4)
+        self.assertTrue(completed["result"]["winner_ids"])
+        self.assertEqual(self.request("/api/runs/%s/export" % scripted["id"])["result"], completed["result"])
+        self.assertEqual(self.request("/api/runs")["runs"][0]["game"], "guessing")
+        restored = Application(Path(self.temp.name) / "test.sqlite3")
+        self.assertEqual(restored.store.get_run(scripted["id"])["result"], completed["result"])
+
+        mock = ThreadingHTTPServer(("127.0.0.1", 0), MockModelHandler)
+        thread = threading.Thread(target=mock.serve_forever, daemon=True)
+        thread.start()
+        MockModelHandler.truncated = False
+        MockModelHandler.delay = 0
+        MockModelHandler.calls.clear()
+        try:
+            for kind in ("ollama", "compatible"):
+                with self.subTest(kind=kind):
+                    base = "http://127.0.0.1:%d" % mock.server_port
+                    provider = self.request("/api/providers", {"kind": kind, "base_url": base + ("/v1" if kind == "compatible" else ""), "model": "mock-reasoner"})
+                    run = self.request("/api/runs", {"game": "guessing", "mode": "model", "provider_id": provider["id"], "population": 3})
+                    self.assertEqual(run["prompt_version"], "guessing-v1")
+                    self.assertIn("simultaneous guessing game", run["system_prompt"])
+                    run = self.request("/api/runs/%s/step" % run["id"], {})
+                    self.assertEqual(run["result"]["winner_ids"], ["A01", "A02", "A03"])
+                    self.assertEqual(run["usage"]["model_calls"], 3)
+                    request = MockModelHandler.calls[-1]
+                    schema = request["format"] if kind == "ollama" else request["response_format"]["json_schema"]["schema"]
+                    self.assertEqual(schema, GUESSING_SCHEMA)
+                    obs = json.loads(request["messages"][-1]["content"])
+                    self.assertEqual(obs["experiment"], "guessing")
+                    self.assertNotIn("scripted_guesses", obs)
             self.assertEqual(len(MockModelHandler.calls), 6)
         finally:
             mock.shutdown()
